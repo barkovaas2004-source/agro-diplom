@@ -13,18 +13,16 @@ from reportlab.lib.colors import HexColor, white
 from reportlab.lib.utils import ImageReader
 from datetime import datetime
 
-#ШРИФТЫ
+#шрифты
 def register_arial_font():
-    # 1. Сначала ищем шрифт в папке с проектом (универсальный способ)
     local_font = "arial.ttf"
     if os.path.exists(local_font):
         try:
             pdfmetrics.registerFont(TTFont('ArialCustom', local_font))
             return 'ArialCustom'
         except:
-            pass # Если не получилось, пробуем дальше
+            pass
             
-    # 2. Если нет в папке, ищем в Windows
     win_path = "C:\\Windows\\Fonts\\arial.ttf"
     if os.path.exists(win_path):
         try:
@@ -33,7 +31,6 @@ def register_arial_font():
         except:
             pass
 
-    # 3. Если нет в Windows, ищем в Linux (стандартные пути)
     linux_paths = [
         "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
@@ -47,7 +44,6 @@ def register_arial_font():
             except:
                 pass
 
-    # 4. Если нет в Linux, ищем в macOS
     mac_path = "/Library/Fonts/Arial.ttf"
     if os.path.exists(mac_path):
         try:
@@ -56,10 +52,9 @@ def register_arial_font():
         except:
             pass
 
-    # 5. Если ничего не нашли, используем стандартный Helvetica (он есть везде в ReportLab)
     return 'Helvetica'
 
-#КОНФИГУРАЦИЯ
+#конфигурация
 INDEX_CONFIG = {
     "NDVI": {
         "desc": "Normalized Difference Vegetation Index",
@@ -128,7 +123,7 @@ MONTH_HEALTH_NORMS = {"Май": 40, "Июнь": 70, "Июль": 80, "Авгус�
 MONTH_DEVIATION_THRESHOLDS = {"Май": 70, "Июнь": 20, "Июль": 30, "Август": 40, "Сентябрь": 60}
 PAYOUT_THRESHOLDS = {"start": 20, "medium": 40, "high": 60}
 
-#ФУНКЦИЯ АНАЛИЗА
+#анализ
 def analyze_change_and_classes(img_start_pil, img_current_pil, classes_config, month_start, month_current):
     arr_start = np.array(img_start_pil.resize(img_current_pil.size, Image.LANCZOS).convert("RGB"))
     arr_current = np.array(img_current_pil.convert("RGB"))
@@ -191,7 +186,7 @@ def analyze_change_and_classes(img_start_pil, img_current_pil, classes_config, m
             start_pct, current_pct, degradation_details, weighted_damage_sum, 
             start_deviation_pct, current_deviation_pct, current_class_stats, total_useful_pixels)
 
-#ГРАФИКИ
+#графики
 def _setup_matplotlib(): plt.rcParams.update({'figure.max_open_warning': 0, 'font.family': 'sans-serif'})
 
 def create_comparison_chart(start_pct, current_pct, classes_config):
@@ -225,7 +220,6 @@ def create_deviation_chart(current_class_stats, total_pixels):
     _setup_matplotlib()
     labels, values = [], []
     
-    # Динамический выбор "плохих" классов для графика отклонений
     crit_classes = []
     if "Здания/Вода/Пусто" in current_class_stats: # NDVI
         crit_classes = [("Здания/Вода/Пусто", '#FF0000'), ("Открытая почва", '#ED8A00')]
@@ -242,7 +236,6 @@ def create_deviation_chart(current_class_stats, total_pixels):
         else:
              crit_classes = [("Открытая почва / Отсутствие растительности", '#FF0000'), ("Разреженная / Стрессовая растительность", '#F3FF00')]
     else:
-        # Фолбэк: берем первый класс конфигурации как проблемный
         for idx_name, cfg in INDEX_CONFIG.items():
              if cfg["classes"]:
                  bad_cls = cfg["classes"][0]
@@ -266,17 +259,15 @@ def create_deviation_chart(current_class_stats, total_pixels):
     for b, v in zip(bars, values): ax.annotate(f'{v:.1f}%', (b.get_x()+b.get_width()/2, v), xytext=(0,3), textcoords="offset points", ha='center', va='bottom', fontsize=9)
     buf = io.BytesIO(); plt.tight_layout(); plt.savefig(buf, format='PNG', dpi=100, facecolor='white', bbox_inches='tight'); plt.close(fig); buf.seek(0); return buf.getvalue()
 
-#PDF:ОТЧЕТ
+#PDF:отчет
 def create_insurance_pdf(month_start, month_current, risk_score, payout, insured_amount, index_name, class_results, health_pct, norm_pct, pct_degr, start_pct, current_pct, classes_config, visual_mask_bytes, degradation_details, avg_weight, start_dev_pct, curr_dev_pct, thresh_start, thresh_curr):
     buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4; font_name = register_arial_font()
     
-    #Шапка
     c.setFillColor(HexColor("#2E8B57")); c.rect(0, height - 2.5*cm, width, 2.5*cm, fill=True, stroke=False)
     c.setFillColor(white); c.setFont(font_name, 22); c.drawCentredString(width/2, height - 1.3*cm, "ОТЧЕТ АГРОНОМИЧЕСКОГО АНАЛИЗА")
     c.setFont(font_name, 10); c.drawString(2*cm, height - 2.0*cm, f"Регион: Данковский район | Индекс: {index_name}")
     c.drawRightString(width - 2*cm, height - 2.0*cm, f"Дата: {st.session_state.get('date', '20.05.2026')}")
 
-    #1.Динамика
     y = height - 4.2*cm; c.setFillColor("#000000"); c.setFont(font_name, 14); c.drawString(2*cm, y, "1. Динамика состояния посевов")
     warns = []
     if start_dev_pct > thresh_start: warns.append(f"⚠️ {month_start}: Отклонения {start_dev_pct:.1f}% > {thresh_start}%")
@@ -289,12 +280,10 @@ def create_insurance_pdf(month_start, month_current, risk_score, payout, insured
     chart = create_comparison_chart(start_pct, current_pct, classes_config)
     if chart: c.drawImage(ImageReader(io.BytesIO(chart)), 2*cm, y - 4.5*cm, width=17*cm, height=4*cm, preserveAspectRatio=True, mask='auto')
     
-    #2.Карта
     y -= 6.5*cm; c.setFont(font_name, 14); c.drawString(2*cm, y, "2. Карта выявленных ухудшений")
     c.setFont(font_name, 9); c.drawString(2*cm, y - 0.5*cm, "Подсвечены зоны ухудшения относительно базового снимка.")
     if visual_mask_bytes: c.drawImage(ImageReader(io.BytesIO(visual_mask_bytes)), 2*cm, y - 5.0*cm, width=17*cm, height=4*cm, preserveAspectRatio=True, mask='auto')
     
-    #3.Детальный расчет
     y -= 6.2*cm 
     block_h = 6.0*cm 
     c.setFillColor(HexColor("#F9F9F9")); c.rect(2*cm, y - block_h, 17*cm, block_h, fill=True, stroke=True); c.setStrokeColor("#CCCCCC")
@@ -314,7 +303,6 @@ def create_insurance_pdf(month_start, month_current, risk_score, payout, insured
     c.setFont(font_name, 11); c.drawString(2.5*cm, cy - 1.8*cm, f"ИТОГОВЫЙ ИНДЕКС РИСКА: {risk_score:.2f}%")
     c.drawString(2.5*cm, cy - 2.3*cm, f"({pct_degr:.2f}% × {avg_weight:.2f})")
 
-    #Выплата
     fy = y - block_h - 1.5*cm 
     c.setFont(font_name, 12); c.drawString(2.5*cm, fy, f"Страховая сумма: {insured_amount:,.0f} руб.")
     c.setFont(font_name, 18); c.setFillColor(HexColor("#D32F2F")); c.drawString(2.5*cm, fy - 0.8*cm, "ИТОГО К ВЫПЛАТЕ:")
@@ -329,7 +317,7 @@ def create_insurance_pdf(month_start, month_current, risk_score, payout, insured
     
     c.save(); buffer.seek(0); return buffer.getvalue()
 
-#PDF:РЕКОМЕНДАЦИИ
+#PDF:рекомендации
 def create_recommendation_pdf(index_name, class_results, month, health_pct, norm_pct, current_class_stats, total_pixels):
     buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4; font_name = register_arial_font()
     c.setFillColor(HexColor("#FF9800")); c.rect(0, height - 2.2*cm, width, 2.2*cm, fill=True, stroke=False)
@@ -341,7 +329,6 @@ def create_recommendation_pdf(index_name, class_results, month, health_pct, norm
     y -= 0.4*cm; c.setFillColor(HexColor("#D32F2F") if health_pct < norm_pct else HexColor("#2E8B57"))
     c.drawString(2*cm, y, "Не достигает нормы!" if health_pct < norm_pct else "В пределах нормы"); c.setFillColor("#000000")
 
-    # Настройки размеров графиков
     y_charts_top = height - 6*cm 
     chart_w = 9*cm 
     chart_h = 7*cm 
@@ -352,15 +339,12 @@ def create_recommendation_pdf(index_name, class_results, month, health_pct, norm
     
     pct_dict = {k: (v/total_pixels*100) for k,v in current_class_stats.items()}
     
-    # График структуры (слева)
     img_struct = create_field_structure_chart(pct_dict, INDEX_CONFIG[index_name]["classes"])
     if img_struct: c.drawImage(ImageReader(io.BytesIO(img_struct)), 2*cm, y_charts_top - chart_h, width=chart_w, height=chart_h, preserveAspectRatio=True, mask='auto')
     
-    # График отклонений (справа)
     img_dev = create_deviation_chart(current_class_stats, total_pixels)
     if img_dev: c.drawImage(ImageReader(io.BytesIO(img_dev)), 10.5*cm, y_charts_top - chart_h, width=chart_w, height=chart_h, preserveAspectRatio=True, mask='auto')
 
-    # Текст рекомендаций начинается ниже графиков
     y_txt = y_charts_top - chart_h - 1.0*cm 
     c.setFont(font_name, 14); c.drawString(2*cm, y_txt, "4. РЕКОМЕНДАЦИИ ПО ЗОНАМ")
     y_txt -= 0.6*cm; c.line(2*cm, y_txt, 19*cm, y_txt); y_txt -= 0.5*cm; c.setFont(font_name, 11)
@@ -393,7 +377,6 @@ def create_recommendation_pdf(index_name, class_results, month, health_pct, norm
     for r in ["• Мониторинг каждые 7-10 дней", "• Журнал агротехнических мероприятий", "• Внеплановое обследование при ухудшении"]:
         c.drawString(2*cm, y_txt, r); y_txt -= 0.45*cm
         
-    # ✅ ПОДВАЛ PDF
     c.setFillColor("#555555")
     c.setFont(font_name, 8)
     current_year = datetime.now().year
@@ -402,7 +385,7 @@ def create_recommendation_pdf(index_name, class_results, month, health_pct, norm
     
     c.save(); buffer.seek(0); return buffer.getvalue()
 
-#ИНТЕРФЕЙС
+#интерфейс
 st.set_page_config(page_title="АгроСтрахование", page_icon="🌾", layout="wide")
 if 'date' not in st.session_state:
     st.session_state['date'] = datetime.now().strftime("%d.%m.%Y")
@@ -471,7 +454,6 @@ if file_start and file_current:
                 with b2: st.download_button("💡 Скачать рекомендации", pdf2, f"Рекомендации_{selected_index}.pdf", "application/pdf", use_container_width=True)
             except Exception as e: st.error(f"Ошибка анализа: {e}")
 
-# ✅ ПОДВАЛ САЙТА
 st.divider()
 current_year = datetime.now().year
 st.markdown(f"""
